@@ -1,68 +1,435 @@
 const express = require('express');
+const Admin = require('../model/User');
+const bcrypt = require('bcrypt');
+const Employee = require('../model/Employee');
 
 const app = express();
 var fs = require('fs');
 
-// get array
-app.route('/coordinate')
-    .get(get_coordinates);
+// to login Admin
+app.route('/login')
+    .post( (req, res) => {
 
-function get_coordinates(req, res) {
-    // console.log(req.query.restitution);
-    res.json({"Coordinates array": ball_coordinate(req.query.restitution) });
-}
+        Admin.find({email: req.body.email})
+        .then((user) => {
+            if (!user) {
+                res.statusCode(404);
+                res.json({msg: `Email/Password incorrect.`});
+                res.end();
+            } else {
+                bcrypt.compare(req.body.password, user.data)
+                .then()
+                .catch((err) => {
+                    res.statusCode(404);
+                    res.json({msg: `Error occurred`});
+                    res.end();
+                })
+            }
+        })
+        .catch((err)=>{
+            console.log('Error occurred');
+        });
+    });
 
-// get past calculations
-app.route('/history')
-    .get(past_calculations);
+// to register Admin
+app.route('/register')
+    .post( (req, res) => {
 
-function past_calculations() {
-    if (fs.existsSync('./ball_history_data.json')) {
-        
-        fs.readFile('./ball_history_data.json', function (err, data) {
-            var json = JSON.parse(data)
-            if (req.query.calculation_number) {
-                res.json({
-                    data: json.array[req.query.calculation_number]
+        var newAdmin = new Admin({
+            name: req.body.name,
+            email: req.body.email
+        })
+
+        Admin.findOne({email: req.body.email})
+        .then((data) => {
+            // console.log(data)
+            if (data !== null) {
+                res.statusCode = (404);
+                res.json({msg: `${newAdmin.email} already exists`});
+                res.end();
+            } else {
+                bcrypt.hash(req.body.password, 10)
+                .then((hash) => {
+                    newAdmin.password = hash;
+                    newAdmin.save((err, data) => {
+                        if (err) {
+                            res.statusCode = (404);
+                            res.json({msg: `Error occurred`});
+                            res.end();
+                        } else {
+                            res.statusCode = (404);
+                            res.json({msg: `Admin registered`});
+                            res.end();
+                        }
+                    });
+                })
+                .catch((err) => {
+                    res.statusCode = (404);
+                    res.json({msg: `Error occurred while hashing: ${err}`});
+                    res.end();
+                });
+            }
+        })
+        .catch((err)=>{
+            res.statusCode = (404);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
+        });
+    });
+
+// to delete Admin
+app.route('/delete')
+    .post( (req, res) => {
+        Admin.findOneAndDelete({email: req.body.email})
+        .then((user) => {
+            if (user) {
+                res.statusCode = (200);
+                res.json({msg: `Admin deleted`});
+                res.end();
+            } else {
+                res.statusCode = (404);
+                res.json({msg: `Admin not found`});
+                res.end();
+            }
+        })
+        .catch((err)=>{
+            res.statusCode = (404);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
+        });
+    });
+
+// to add an employee
+app.route('/addemployee')
+    .post((req, res) => {
+        var sheet = [];
+
+        var newEmployee = new Employee({
+            name: req.body.name,
+            email: req.body.email,
+            hourlyRate: req.body.hourlyRate
+        });
+
+        Employee.findOne({email: req.body.email})
+        .then((user) => {
+            if (user !== null) {
+                res.statusCode = (404);
+                res.json({msg: `${newEmployee.email} already exists`});
+                res.end();
+            } else {
+                newEmployee.save((err) => {
+                    if (err) {
+                        res.statusCode = (404);
+                        res.json({msg: `Error occurred: ${err}`});
+                        res.end();
+                    } else {
+                        res.statusCode = (200);
+                        res.json({msg: `Employee saved`});
+                        res.end();
+                    }
+                });
+            }
+        })
+        .catch((err) => {
+            res.statusCode = (400);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
+        });
+    });
+
+// app.route('/changehourlyrate')
+//     .post((req, res) => {
+
+//         Employee.findOneAndUpdate({email: req.body.email}, {$set: {hourlyRate: req.body.hourlyRate}})
+//         .then((user) => {
+//             if (user === null) {
+//                 res.statusCode = (404);
+//                 res.json({msg: `Employee not found.`});
+//                 res.end();
+//             } else {
+//                 res.statusCode = (200);
+//                 res.json({msg: `Hourly rate updated.`});
+//                 res.end();
+//             }
+//         })
+//         .catch((err) => {
+//             res.statusCode = (400);
+//             res.json({msg: `Error occurred: ${err}`});
+//             res.end();
+//         });
+//     });
+
+app.route('/addtotalworkinghours')
+    .post((req, res) => {
+
+        var allowance = req.body.allowance? req.body.allowance: 0;
+        var deduction = req.body.deduction? req.body.deduction: 0;
+
+        var time = {
+            hours: req.body.hours,
+            allowance: allowance,
+            deduction: deduction,
+            year: req.body.year,
+            month: req.body.month
+        }
+
+        Employee.findOne({email: req.body.email, sheet: {$elemMatch: { year: req.body.year, month: req.body.month }}})
+        .then((user) => {
+            
+            if (user === null) {
+                Employee.updateOne({email: req.body.email}, {$push: {sheet: time}})
+                .then((data) => {
+                    // console.log(data);
+                    res.statusCode = (200);
+                    res.json({msg: `PaySlip added.`});
+                    res.end();
+                })
+                .catch((err) => {
+                    res.statusCode = (400);
+                    res.json({msg: `Error occurred: ${err}`});
+                    res.end();
                 });
             } else {
-                res.json({
-                    msg: `Calculation number ${req.query.calculation_number} does not exist.`
+                res.statusCode = (404);
+                res.json({msg: `Pay Slip already exists`});
+                res.end();
+            }
+        })
+        .catch((err) => {
+            res.statusCode = (400);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
+        });
+    });
+
+app.route('/edittotalworkinghours')
+    .post((req, res) => {
+
+        Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
+            // console.log(user);
+            // var arr = JSON.parse(JSON.stringify(user.sheet));
+            // console.log( arr.length);
+            if(err) {
+                res.statusCode = (200);
+                res.json({msg: `Updated`});
+                res.end();
+            } else if(user === null) {
+                res.statusCode = (404);
+                res.json({msg: `Null`});
+                res.end();
+            } else {
+                var temp = [];
+
+                for (var i=0; i<JSON.parse(JSON.stringify(user.sheet)).length; i++) {
+
+                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === req.body.year && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
+                        var obj = JSON.parse(JSON.stringify(user.sheet))[i];
+                        obj.hours = req.body.hours;
+                        temp.push(obj);
+                        // temp.push({"year": req.body.year, "hours": req.body.hours, "month": req.body.month, "allowance": JSON.parse(JSON.stringify(user.sheet))[i].allowance, "deduction": JSON.parse(JSON.stringify(user.sheet))[i].deduction});
+                    } else {
+                        temp.push(JSON.parse(JSON.stringify(user.sheet))[i])
+                    }
+                }
+                
+                Employee.updateOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, {$set: {sheet: temp}})
+                .then( (user) => {
+                    // console.log(user)
+                    if (user === null) {
+                        res.statusCode = (404);
+                        res.json({msg: `Employee/Payslip not found.`});
+                        res.end();
+                    } else {
+                        res.statusCode = (200);
+                        res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
+                        res.end();
+                    }
+                })
+                .catch((err) => {
+                    res.statusCode = (400);
+                    res.json({msg: `Error occurred: ${err}`});
+                    res.end();
                 });
             }
-
-        })
-    } else {
-        res.json({
-            msg: "No data on previous calulations"
         });
-    }
-}
 
-function ball_coordinate(restitution) {
-    
+        // var time = {
+        //     hours: req.body.hours,
+        //     // allowance: allowance,
+        //     // deduction: deduction,
+        //     year: req.body.year,
+        //     month: req.body.month
+        // }
+        // console.log(req.body.hours);
+        // sheet: {$elemMatch: { year: req.body.year, month: req.body.month }}
+        // Employee.find({ "sheet.year": req.body.year})
+        // await Employee.findOneAndUpdate({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, {$set: {"sheet.$.hours": 3}}, (err, user) => {
+        //     // console.log(user)
+        //     if (user === null) {
+        //         res.statusCode = (404);
+        //         res.json({msg: `Employee/Payslip not found.`});
+        //         res.end();
+        //     } else {
+        //         res.statusCode = (200);
+        //         res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
+        //         res.end();
+        //     }
+        // });
 
-    if (fs.existsSync('./ball_history_data.json')) {
-        
-        fs.readFile('./ball_history_data.json', function (err, data) {
-            var json = JSON.parse(data)
-            json.array.push(coordinates_array)
-        
-            fs.writeFile('./ball_history_data.json', JSON.stringify(json), (err) => {
-                if (err) {
-                    console.log("Error write storing data: "+ err);
+        // Employee.findOne({email:"praveen"}, (err, data)=>{
+        //     console.log(data);        })
+        // Employee.updateOne({email: "praveen"}, {"$set":{"sheet.$.month": "bbb"}} )
+        // .then( (user) => {
+        //     console.log(user)
+        //     if (user === null) {
+        //         res.statusCode = (404);
+        //         res.json({msg: `Employee/Payslip not found.`});
+        //         res.end();
+        //     } else {
+        //         res.statusCode = (200);
+        //         res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
+        //         res.end();
+        //     }
+        // })
+        // .catch((err) => {
+        //     res.statusCode = (400);
+        //     res.json({msg: `Error occurred: ${err}`});
+        //     res.end();
+        // });
+    });
+
+app.route('/deletetotalworkinghours')
+    .post((req, res) => {
+
+        Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
+            
+            if(err) {
+                res.statusCode = (200);
+                res.json({msg: `Updated`});
+                res.end();
+            } else if(user === null) {
+                res.statusCode = (404);
+                res.json({msg: `Null`});
+                res.end();
+            } else {
+                var temp = [];
+
+                for (var i=0; i<JSON.parse(JSON.stringify(user.sheet)).length; i++) {
+
+                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === req.body.year && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
+                        // temp.push({"year": req.body.year, "hours": req.body.hours, "month": req.body.month});
+                    } else {
+                        temp.push(JSON.parse(JSON.stringify(user.sheet))[i])
+                    }
                 }
-            })
-        })
-    } else {
-        fs.writeFile('./ball_history_data.json', JSON.stringify({"array": coordinates_array}), (err) => {
-            if (err) {
-                console.log("Error write storing data: "+ err);
+                
+                Employee.updateOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, {$set: {sheet: temp}})
+                .then( (user) => {
+                    console.log(user)
+                    if (user === null) {
+                        res.statusCode = (404);
+                        res.json({msg: `Employee/Payslip not found.`});
+                        res.end();
+                    } else {
+                        res.statusCode = (200);
+                        res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
+                        res.end();
+                    }
+                })
+                .catch((err) => {
+                    res.statusCode = (400);
+                    res.json({msg: `Error occurred: ${err}`});
+                    res.end();
+                });
             }
         });
-    }
-    
-    return coordinates_array
-}
+    });
+
+app.route('/additional')
+    .post((req, res) => {
+
+        Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
+            
+            if(err) {
+                res.statusCode = (200);
+                res.json({msg: `Updated`});
+                res.end();
+            } else if(user === null) {
+                res.statusCode = (404);
+                res.json({msg: `Null`});
+                res.end();
+            } else {
+                var temp = [];
+
+                for (var i=0; i<JSON.parse(JSON.stringify(user.sheet)).length; i++) {
+
+                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === req.body.year && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
+                        var obj = JSON.parse(JSON.stringify(user.sheet))[i];
+                        // console.log(obj)
+                        obj.allowance = req.body.allowance || obj.allowance;
+                        obj.deduction = req.body.deduction || obj.deduction;
+                        temp.push(obj);
+                    } else {
+                        temp.push(JSON.parse(JSON.stringify(user.sheet))[i])
+                    }
+                }
+                
+                Employee.updateOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, {$set: {sheet: temp}})
+                .then( (user) => {
+                    if (user === null) {
+                        res.statusCode = (404);
+                        res.json({msg: `Employee/Payslip not found.`});
+                        res.end();
+                    } else {
+                        res.statusCode = (200);
+                        res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
+                        res.end();
+                    }
+                })
+                .catch((err) => {
+                    res.statusCode = (400);
+                    res.json({msg: `Error occurred: ${err}`});
+                    res.end();
+                });
+            }
+        });
+    });
+
+app.route('/salary')
+    .get((req, res) => {
+
+        Employee.findOne({email: req.query.email, "sheet.year": req.query.year, "sheet.month": req.query.month})
+        .then((user) => {
+
+            if (err) {
+                res.statusCode = (200);
+                res.json({msg: `Error: ${err}`});
+                res.end();
+            } else if (user === null) {
+                res.statusCode = (404);
+                res.json({msg: `Null`});
+                res.end();
+            } else {
+                var salary;
+                for (var i=0; i<JSON.parse(JSON.stringify(user.sheet)).length; i++) {
+
+                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === req.body.year && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
+                        var obj = JSON.parse(JSON.stringify(user.sheet))[i];
+                        salary = obj.hours*user.hourlyRate + obj.allowance - obj.deduction;
+                        break;
+                    }
+                }
+
+                res.statusCode = (200);
+                res.json({msg: salary});
+                res.end();
+            }
+        })
+        .catch((err) => {
+            res.statusCode = (400);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
+        });
+    });
 
 module.exports = app;

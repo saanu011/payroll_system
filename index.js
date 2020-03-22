@@ -3,6 +3,7 @@ const bodyparser = require("body-parser");
 const cors = require("cors");
 const apiUser = require('./api/index');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -10,10 +11,15 @@ const app = express();
 app.use(bodyparser.json({ useNewUrlParser : true}));
 app.use(cors());
 
+mongoose.connect('mongodb://127.0.0.1:27017/payroll', {useNewUrlParser: true, useUnifiedTopology: true}, (err) => {
+    if (err) console.log(err);
+    else console.log("Connected to db");
+});
+
 app.use('/', apiUser);
 
 app.use('/', (req, res) => {
-    res.send("This is a problem of Projecticle motion.")
+    res.send("This is a Payroll System.");
 });
 
 app.use('/bouncingball', (req, res) => {
