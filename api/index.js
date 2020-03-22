@@ -2,9 +2,22 @@ const express = require('express');
 const Admin = require('../model/User');
 const bcrypt = require('bcrypt');
 const Employee = require('../model/Employee');
+const config = require('../config/config');
+// const verification = require('./verification');
 
 const app = express();
 var fs = require('fs');
+
+function verification(req, res, next) {
+    if (req.headers["authorization"] !== undefined) {
+        jwt.verify(req.headers["authorization"], config.secretKey);
+        next();
+    } else {
+        res.statusCode = (404);
+        res.json({msg: `Admin not Logged In`});
+        res.end();
+    }
+}
 
 // to login Admin
 app.route('/login')
@@ -13,14 +26,19 @@ app.route('/login')
         Admin.find({email: req.body.email})
         .then((user) => {
             if (!user) {
-                res.statusCode(404);
+                res.statusCode = (404);
                 res.json({msg: `Email/Password incorrect.`});
                 res.end();
             } else {
                 bcrypt.compare(req.body.password, user.data)
-                .then()
+                .then((data) => {
+                    var token = jwt.sign({email: req.body.email}, config.secretKey, {expiresIn: '24h'});
+                    res.statusCode = (200);
+                    res.json({msg: token});
+                    res.end();
+                })
                 .catch((err) => {
-                    res.statusCode(404);
+                    res.statusCode = (404);
                     res.json({msg: `Error occurred`});
                     res.end();
                 })
@@ -101,7 +119,7 @@ app.route('/delete')
 
 // to add an employee
 app.route('/addemployee')
-    .post((req, res) => {
+    .post(verification, (req, res) => {
         var sheet = [];
 
         var newEmployee = new Employee({
@@ -160,7 +178,7 @@ app.route('/addemployee')
 //     });
 
 app.route('/addtotalworkinghours')
-    .post((req, res) => {
+    .post(verification, (req, res) => {
 
         var allowance = req.body.allowance? req.body.allowance: 0;
         var deduction = req.body.deduction? req.body.deduction: 0;
@@ -203,7 +221,7 @@ app.route('/addtotalworkinghours')
     });
 
 app.route('/edittotalworkinghours')
-    .post((req, res) => {
+    .post(verification, (req, res) => {
 
         Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
             // console.log(user);
@@ -299,7 +317,7 @@ app.route('/edittotalworkinghours')
     });
 
 app.route('/deletetotalworkinghours')
-    .post((req, res) => {
+    .post(verification, (req, res) => {
 
         Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
             
@@ -346,7 +364,7 @@ app.route('/deletetotalworkinghours')
     });
 
 app.route('/additional')
-    .post((req, res) => {
+    .post(verification, (req, res) => {
 
         Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
             
@@ -396,7 +414,7 @@ app.route('/additional')
     });
 
 app.route('/salary')
-    .get((req, res) => {
+    .get(verification, (req, res) => {
 
         Employee.findOne({email: req.query.email, "sheet.year": req.query.year, "sheet.month": req.query.month})
         .then((user) => {
