@@ -189,16 +189,18 @@ app.route('/addemployee')
 app.route('/addtotalhours')
     .post(verification, (req, res) => {
 
-        var allowance = req.body.allowance? req.body.allowance: 0;
-        var deduction = req.body.deduction? req.body.deduction: 0;
+        let allowance = req.body.allowance? req.body.allowance: 0;
+        let deduction = req.body.deduction? req.body.deduction: 0;
+        console.log(allowance, deduction);
 
         var time = {
             hours: req.body.hours,
-            allowance: allowance,
             deduction: deduction,
             year: req.body.year,
-            month: req.body.month
+            month: req.body.month,
+            allowance: allowance,
         }
+        console.log(time)
 
         Employee.findOne({email: req.body.email, sheet: {$elemMatch: { year: req.body.year, month: req.body.month }}})
         .then((user) => {
@@ -279,50 +281,6 @@ app.route('/edittotalhours')
                 });
             }
         });
-
-        // var time = {
-        //     hours: req.body.hours,
-        //     // allowance: allowance,
-        //     // deduction: deduction,
-        //     year: req.body.year,
-        //     month: req.body.month
-        // }
-        // console.log(req.body.hours);
-        // sheet: {$elemMatch: { year: req.body.year, month: req.body.month }}
-        // Employee.find({ "sheet.year": req.body.year})
-        // await Employee.findOneAndUpdate({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, {$set: {"sheet.$.hours": 3}}, (err, user) => {
-        //     // console.log(user)
-        //     if (user === null) {
-        //         res.statusCode = (404);
-        //         res.json({msg: `Employee/Payslip not found.`});
-        //         res.end();
-        //     } else {
-        //         res.statusCode = (200);
-        //         res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
-        //         res.end();
-        //     }
-        // });
-
-        // Employee.findOne({email:"praveen"}, (err, data)=>{
-        //     console.log(data);        })
-        // Employee.updateOne({email: "praveen"}, {"$set":{"sheet.$.month": "bbb"}} )
-        // .then( (user) => {
-        //     console.log(user)
-        //     if (user === null) {
-        //         res.statusCode = (404);
-        //         res.json({msg: `Employee/Payslip not found.`});
-        //         res.end();
-        //     } else {
-        //         res.statusCode = (200);
-        //         res.json({msg: `Monthly Hours updated for ${req.body.month}, ${req.body.year}.`});
-        //         res.end();
-        //     }
-        // })
-        // .catch((err) => {
-        //     res.statusCode = (400);
-        //     res.json({msg: `Error occurred: ${err}`});
-        //     res.end();
-        // });
     });
 
 app.route('/deletetotalhours')
@@ -428,11 +386,7 @@ app.route('/salary')
         Employee.findOne({email: req.query.email, "sheet.year": req.query.year, "sheet.month": req.query.month})
         .then((user) => {
 
-            if (err) {
-                res.statusCode = (404);
-                res.json({msg: `Error: ${err}`});
-                res.end();
-            } else if (user === null) {
+            if (user === null) {
                 res.statusCode = (404);
                 res.json({msg: `No information found`});
                 res.end();
@@ -440,9 +394,16 @@ app.route('/salary')
                 var salary;
                 for (var i=0; i<JSON.parse(JSON.stringify(user.sheet)).length; i++) {
 
-                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === req.body.year && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
+                    if (JSON.parse(JSON.stringify(user.sheet))[i].year === Number(req.body.year) && JSON.parse(JSON.stringify(user.sheet))[i].month === req.body.month) {
                         var obj = JSON.parse(JSON.stringify(user.sheet))[i];
-                        salary = obj.hours*user.hourlyRate + obj.allowance - obj.deduction;
+                        console.log(obj, user)
+                        if (obj.allowance) {
+                            salary += obj.allowance
+                        }
+                        if (obj.deduction) {
+                            salary += obj.deduction
+                        }
+                        salary = obj.hours*user.hourlyRate;
                         break;
                     }
                 }
