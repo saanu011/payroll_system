@@ -3,6 +3,7 @@ const Admin = require('../model/User');
 const bcrypt = require('bcrypt');
 const Employee = require('../model/Employee');
 const config = require('../config/config');
+const jwt = require('jsonwebtoken');
 // const verification = require('./verification');
 
 const app = express();
@@ -13,7 +14,7 @@ function verification(req, res, next) {
         jwt.verify(req.headers["authorization"], config.secretKey);
         next();
     } else {
-        res.statusCode = (404);
+        res.statusCode = (403);
         res.json({msg: `Admin not Logged In`});
         res.end();
     }
@@ -23,29 +24,38 @@ function verification(req, res, next) {
 app.route('/login')
     .post( (req, res) => {
 
-        Admin.find({email: req.body.email})
+        Admin.findOne({email: req.body.email})
         .then((user) => {
+            
             if (!user) {
                 res.statusCode = (404);
                 res.json({msg: `Email/Password incorrect.`});
                 res.end();
             } else {
-                bcrypt.compare(req.body.password, user.data)
-                .then((data) => {
-                    var token = jwt.sign({email: req.body.email}, config.secretKey, {expiresIn: '24h'});
-                    res.statusCode = (200);
-                    res.json({msg: token});
-                    res.end();
+                bcrypt.compare(req.body.password, user.password)
+                .then((result) => {
+                    if (result) {
+                        var token = jwt.sign({email: req.body.email}, config.secretKey, {expiresIn: '24h'});
+                        res.statusCode = (200);
+                        res.json({msg: token});
+                        res.end();
+                    } else {
+                        res.statusCode = (404);
+                        res.json({msg: `Email/Password incorrect.`});
+                        res.end();
+                    }
                 })
                 .catch((err) => {
                     res.statusCode = (404);
-                    res.json({msg: `Error occurred`});
+                    res.json({msg: `Error occurred: ${err}`});
                     res.end();
                 })
             }
         })
         .catch((err)=>{
-            console.log('Error occurred');
+            res.statusCode = (404);
+            res.json({msg: `Error occurred: ${err}`});
+            res.end();
         });
     });
 
@@ -75,7 +85,7 @@ app.route('/register')
                             res.json({msg: `Error occurred`});
                             res.end();
                         } else {
-                            res.statusCode = (404);
+                            res.statusCode = (200);
                             res.json({msg: `Admin registered`});
                             res.end();
                         }
@@ -120,7 +130,6 @@ app.route('/delete')
 // to add an employee
 app.route('/addemployee')
     .post(verification, (req, res) => {
-        var sheet = [];
 
         var newEmployee = new Employee({
             name: req.body.name,
@@ -149,7 +158,7 @@ app.route('/addemployee')
             }
         })
         .catch((err) => {
-            res.statusCode = (400);
+            res.statusCode = (404);
             res.json({msg: `Error occurred: ${err}`});
             res.end();
         });
@@ -177,7 +186,7 @@ app.route('/addemployee')
 //         });
 //     });
 
-app.route('/addtotalworkinghours')
+app.route('/addtotalhours')
     .post(verification, (req, res) => {
 
         var allowance = req.body.allowance? req.body.allowance: 0;
@@ -220,7 +229,7 @@ app.route('/addtotalworkinghours')
         });
     });
 
-app.route('/edittotalworkinghours')
+app.route('/edittotalhours')
     .post(verification, (req, res) => {
 
         Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
@@ -316,7 +325,7 @@ app.route('/edittotalworkinghours')
         // });
     });
 
-app.route('/deletetotalworkinghours')
+app.route('/deletetotalhours')
     .post(verification, (req, res) => {
 
         Employee.findOne({email: req.body.email, "sheet.year": req.body.year, "sheet.month": req.body.month}, (err, user) => {
@@ -346,7 +355,7 @@ app.route('/deletetotalworkinghours')
                     console.log(user)
                     if (user === null) {
                         res.statusCode = (404);
-                        res.json({msg: `Employee/Payslip not found.`});
+                        res.json({msg: `Employee/Employee Info not found.`});
                         res.end();
                     } else {
                         res.statusCode = (200);
@@ -370,11 +379,11 @@ app.route('/additional')
             
             if(err) {
                 res.statusCode = (200);
-                res.json({msg: `Updated`});
+                res.json({msg: `Updated successfully`});
                 res.end();
             } else if(user === null) {
                 res.statusCode = (404);
-                res.json({msg: `Null`});
+                res.json({msg: `No information found`});
                 res.end();
             } else {
                 var temp = [];
@@ -396,7 +405,7 @@ app.route('/additional')
                 .then( (user) => {
                     if (user === null) {
                         res.statusCode = (404);
-                        res.json({msg: `Employee/Payslip not found.`});
+                        res.json({msg: `Employee/Employee info not found.`});
                         res.end();
                     } else {
                         res.statusCode = (200);
@@ -420,12 +429,12 @@ app.route('/salary')
         .then((user) => {
 
             if (err) {
-                res.statusCode = (200);
+                res.statusCode = (404);
                 res.json({msg: `Error: ${err}`});
                 res.end();
             } else if (user === null) {
                 res.statusCode = (404);
-                res.json({msg: `Null`});
+                res.json({msg: `No information found`});
                 res.end();
             } else {
                 var salary;
